@@ -14,6 +14,16 @@ from claude_agent_sdk import (
 
 app = BedrockAgentCoreApp()
 
+# System prompt - guides agent behavior and enables multi-agent delegation
+SYSTEM_PROMPT = """You are a helpful assistant that can handle complex tasks.
+
+For complex or multi-step tasks, use the Task tool to delegate to specialized sub-agents:
+- Use Task for research, code exploration, or analysis that benefits from focused attention
+- Use Task for parallel work when multiple independent subtasks can run concurrently
+- Each sub-agent gets its own context and can use all available tools
+
+Keep responses concise and actionable. When delegating, clearly specify what you need from each sub-agent."""
+
 # Memory configuration
 MEMORY_ID = (
     os.environ.get("BEDROCK_AGENTCORE_MEMORY_ID") or
@@ -127,8 +137,8 @@ async def main(payload: dict = None, context: RequestContext = None):
     async def execute_query(resume_session: str | None = None) -> tuple[list[str], str | None]:
         """Execute query, optionally resuming a session. Returns (responses, session_id)."""
         options = ClaudeAgentOptions(
-            system_prompt="You are a helpful assistant.",
-            max_turns=3,
+            system_prompt=SYSTEM_PROMPT,
+            max_turns=10,
         )
 
         if resume_session:
