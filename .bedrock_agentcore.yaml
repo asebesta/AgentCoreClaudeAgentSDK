@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: claudeagentsdkdemo-M49JvLFDPh
       agent_arn: arn:aws:bedrock-agentcore:us-west-2:170076963924:runtime/claudeagentsdkdemo-M49JvLFDPh
-      agent_session_id: cc3719ad-8a6e-4a8d-8955-5e09e2c7b604
+      agent_session_id: bd84696a-d75d-41d0-b151-970dead8d003
     codebuild:
       project_name: bedrock-agentcore-claudeagentsdkdemo-builder
       execution_role: arn:aws:iam::170076963924:role/AmazonBedrockAgentCoreSDKCodeBuild-us-west-2-1eb0176dfd

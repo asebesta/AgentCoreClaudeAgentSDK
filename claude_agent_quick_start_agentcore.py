@@ -124,23 +124,19 @@ async def main(payload: dict = None, context: RequestContext = None):
     memory_client = get_memory_client()
     stored_session = get_stored_session_id(memory_client, conversation_id)
 
-    # Build options
-    options = ClaudeAgentOptions(
-        system_prompt="You are a helpful assistant.",
-        max_turns=3,
-    )
+    async def execute_query(resume_session: str | None = None) -> tuple[list[str], str | None]:
+        """Execute query, optionally resuming a session. Returns (responses, session_id)."""
+        options = ClaudeAgentOptions(
+            system_prompt="You are a helpful assistant.",
+            max_turns=3,
+        )
 
-    if stored_session:
-        print(f"Resuming session: {stored_session}")
-        options.resume = stored_session
-    else:
-        print("Starting new session")
+        if resume_session:
+            options.resume = resume_session
 
-    # Execute query
-    full_response = []
-    session_id = None
+        responses = []
+        new_session_id = None
 
-    try:
         async with ClaudeSDKClient(options) as client:
             await client.query(prompt)
 
@@ -148,12 +144,36 @@ async def main(payload: dict = None, context: RequestContext = None):
                 if isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
-                            full_response.append(block.text)
+                            responses.append(block.text)
                             print(f"Claude: {block.text}")
 
                 if isinstance(message, ResultMessage):
-                    session_id = message.session_id
-                    print(f"Got session_id: {session_id}")
+                    new_session_id = message.session_id
+                    print(f"Got session_id: {new_session_id}")
+
+        return responses, new_session_id
+
+    # Execute query with session resume fallback
+    full_response = []
+    session_id = None
+
+    try:
+        if stored_session:
+            print(f"Resuming session: {stored_session}")
+            try:
+                full_response, session_id = await execute_query(resume_session=stored_session)
+            except Exception as e:
+                # Session expired or not found - start fresh
+                # Error could be "No conversation found" or generic "Command failed"
+                error_msg = str(e).lower()
+                if "no conversation found" in error_msg or "exit code 1" in error_msg:
+                    print(f"Session expired or not found, starting fresh")
+                    full_response, session_id = await execute_query(resume_session=None)
+                else:
+                    raise
+        else:
+            print("Starting new session")
+            full_response, session_id = await execute_query(resume_session=None)
 
     except Exception as e:
         print(f"Error during query: {e}")
