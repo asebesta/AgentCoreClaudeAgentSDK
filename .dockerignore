@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+*.md
+.bedrock_agentcore/
+.claude/
+*.log
+.DS_Store

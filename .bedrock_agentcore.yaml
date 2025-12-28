@@ -1,0 +1,60 @@
+default_agent: claudeagentsdkdemo
+agents:
+  claudeagentsdkdemo:
+    name: claudeagentsdkdemo
+    entrypoint: claude_agent_quick_start_agentcore.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: none
+    source_path: /Users/aaron/playground/LitReview/ResearchAgent/AgentCoreClaudeAgentSDK
+    aws:
+      execution_role: arn:aws:iam::170076963924:role/AmazonBedrockAgentCoreSDKRuntime-us-west-2-1eb0176dfd
+      execution_role_auto_create: false
+      account: '170076963924'
+      region: us-west-2
+      ecr_repository: 170076963924.dkr.ecr.us-west-2.amazonaws.com/bedrock-agentcore-claudeagentsdkdemo
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: true
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: claudeagentsdkdemo-M49JvLFDPh
+      agent_arn: arn:aws:bedrock-agentcore:us-west-2:170076963924:runtime/claudeagentsdkdemo-M49JvLFDPh
+      agent_session_id: cc3719ad-8a6e-4a8d-8955-5e09e2c7b604
+    codebuild:
+      project_name: bedrock-agentcore-claudeagentsdkdemo-builder
+      execution_role: arn:aws:iam::170076963924:role/AmazonBedrockAgentCoreSDKCodeBuild-us-west-2-1eb0176dfd
+      source_bucket: bedrock-agentcore-codebuild-sources-170076963924-us-west-2
+    memory:
+      mode: STM_ONLY
+      memory_id: claudeagentsdkdemo_mem-ASCTQAHVFO
+      memory_arn: arn:aws:bedrock-agentcore:us-west-2:170076963924:memory/claudeagentsdkdemo_mem-ASCTQAHVFO
+      memory_name: claudeagentsdkdemo_mem
+      event_expiry_days: 30
+      first_invoke_memory_check_done: true
+      was_created_by_toolkit: true
+    identity:
+      credential_providers: []
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false

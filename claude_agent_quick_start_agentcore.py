@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""Claude Agent SDK with AgentCore wrapper - maintains conversation context via Memory."""
+
+import os
+from bedrock_agentcore import BedrockAgentCoreApp, RequestContext
+from bedrock_agentcore.memory.client import MemoryClient
+from claude_agent_sdk import (
+    ClaudeSDKClient,
+    ClaudeAgentOptions,
+    AssistantMessage,
+    TextBlock,
+    ResultMessage,
+)
+
+app = BedrockAgentCoreApp()
+
+# Memory configuration
+MEMORY_ID = (
+    os.environ.get("BEDROCK_AGENTCORE_MEMORY_ID") or
+    os.environ.get("MEMORY_ID") or
+    "claudeagentsdkdemo_mem-ASCTQAHVFO"
+)
+ACTOR_ID = "claude_agent"
+
+print(f"Memory ID configured: {MEMORY_ID}")
+
+
+def get_memory_client():
+    """Get Memory client for session persistence."""
+    return MemoryClient(region_name=os.environ.get("AWS_REGION", "us-west-2"))
+
+
+def get_stored_session_id(memory_client: MemoryClient, conversation_id: str) -> str | None:
+    """Retrieve stored Claude SDK session_id from AgentCore Memory."""
+    if not MEMORY_ID:
+        return None
+
+    try:
+        events = memory_client.list_events(
+            memory_id=MEMORY_ID,
+            actor_id=ACTOR_ID,
+            session_id=conversation_id,
+            max_results=10
+        )
+
+        print(f"Found {len(events)} events for conversation {conversation_id}")
+
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+
+            # Payload is a list of message objects
+            payload = event.get("payload", [])
+            if not isinstance(payload, list):
+                continue
+
+            for msg in payload:
+                # Message format: {"conversational": {"content": {"text": "..."}, "role": "..."}}
+                if isinstance(msg, dict):
+                    conversational = msg.get("conversational", {})
+                    content = conversational.get("content", {}).get("text", "")
+
+                    if isinstance(content, str) and content.startswith("__SESSION__:"):
+                        session_id = content.replace("__SESSION__:", "").strip()
+                        print(f"Found stored session: {session_id}")
+                        return session_id
+
+        return None
+    except Exception as e:
+        print(f"Error retrieving session: {e}")
+        return None
+
+
+def save_session_id(memory_client: MemoryClient, conversation_id: str, session_id: str, user_input: str, response: str):
+    """Save the Claude SDK session_id to AgentCore Memory."""
+    if not MEMORY_ID or not session_id:
+        return
+
+    try:
+        # Format: (content, role) tuples
+        memory_client.create_event(
+            memory_id=MEMORY_ID,
+            actor_id=ACTOR_ID,
+            session_id=conversation_id,
+            messages=[
+                (user_input, "USER"),
+                (response, "ASSISTANT"),
+                (f"__SESSION__:{session_id}", "OTHER")
+            ]
+        )
+        print(f"Saved session {session_id} for conversation {conversation_id}")
+    except Exception as e:
+        print(f"Error saving session: {e}")
+
+
+@app.entrypoint
+async def main(payload: dict = None, context: RequestContext = None):
+    """
+    Main entrypoint - handles conversation with context persistence.
+
+    Payload:
+    {
+        "prompt": "Your question",
+        "conversation_id": "unique_id"  # Optional - for multi-turn conversations
+    }
+    """
+    if not payload:
+        return {"error": "No payload provided"}
+
+    prompt = payload.get("prompt", "")
+    if not prompt:
+        return {"error": "No prompt provided"}
+
+    # Get conversation_id from payload or use AgentCore session
+    conversation_id = payload.get("conversation_id")
+    if not conversation_id and context:
+        conversation_id = context.session_id or "default"
+    elif not conversation_id:
+        conversation_id = "default"
+
+    print(f"Conversation ID: {conversation_id}")
+
+    # Check for existing session to resume
+    memory_client = get_memory_client()
+    stored_session = get_stored_session_id(memory_client, conversation_id)
+
+    # Build options
+    options = ClaudeAgentOptions(
+        system_prompt="You are a helpful assistant.",
+        max_turns=3,
+    )
+
+    if stored_session:
+        print(f"Resuming session: {stored_session}")
+        options.resume = stored_session
+    else:
+        print("Starting new session")
+
+    # Execute query
+    full_response = []
+    session_id = None
+
+    try:
+        async with ClaudeSDKClient(options) as client:
+            await client.query(prompt)
+
+            async for message in client.receive_response():
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            full_response.append(block.text)
+                            print(f"Claude: {block.text}")
+
+                if isinstance(message, ResultMessage):
+                    session_id = message.session_id
+                    print(f"Got session_id: {session_id}")
+
+    except Exception as e:
+        print(f"Error during query: {e}")
+        return {"error": str(e)}
+
+    response_text = "\n".join(full_response)
+
+    # Save session for future resumption
+    if session_id:
+        save_session_id(memory_client, conversation_id, session_id, prompt, response_text)
+
+    return {
+        "response": response_text,
+        "conversation_id": conversation_id,
+        "session_id": session_id
+    }
+
+
+if __name__ == "__main__":
+    app.run()
